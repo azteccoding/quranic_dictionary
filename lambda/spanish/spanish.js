@@ -10,7 +10,7 @@ const handler = async (request, context) => {
     const database = (await clientPromise).db("quranic_arabic");
     const collection = database.collection("dictionary");
     const results = await collection
-      .find({ spanish: searchWord.toLowerCase() })
+      .find({ spanish: searchWord.trim().toLowerCase() })
       .toArray();
     return {
       headers: {

@@ -14,7 +14,7 @@ const handler = async (request, context) => {
     const database = (await clientPromise).db("quranic_arabic");
     const collection = database.collection("dictionary");
     const results = await collection
-      .find({ arabic_sg: searchWord.removeHarakats() })
+      .find({ arabic_sg: searchWord.trim().removeHarakats() })
       .toArray();
     return {
       headers: {
