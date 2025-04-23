@@ -9,7 +9,9 @@ const handler = async (request, context) => {
     const searchWord = request.queryStringParameters?.word;
     const database = (await clientPromise).db("quranic_arabic");
     const collection = database.collection("dictionary");
-    const results = await collection.find({ spanish: searchWord }).toArray();
+    const results = await collection
+      .find({ spanish: searchWord.toLowerCase() })
+      .toArray();
     return {
       headers: {
         "Access-Control-Allow-Headers":
