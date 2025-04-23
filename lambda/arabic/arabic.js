@@ -4,12 +4,18 @@ const mongoClient = new MongoClient(process.env.MONGO_URI);
 
 const clientPromise = mongoClient.connect();
 
+String.prototype.removeHarakats = function () {
+  return this.replace(/[\u064B-\u0652]/gm, "");
+};
+
 const handler = async (request, context) => {
   try {
     const searchWord = request.queryStringParameters?.word;
     const database = (await clientPromise).db("quranic_arabic");
     const collection = database.collection("dictionary");
-    const results = await collection.find({ arabic_sg: searchWord }).toArray();
+    const results = await collection
+      .find({ arabic_sg: searchWord.removeHarakats() })
+      .toArray();
     return {
       headers: {
         "Access-Control-Allow-Headers":
