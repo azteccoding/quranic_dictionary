@@ -11,6 +11,13 @@ const handler = async (request, context) => {
     const collection = database.collection("dictionary");
     const results = await collection.find({ spanish: searchWord }).toArray();
     return {
+      headers: {
+        "Access-Control-Allow-Headers":
+          "Origin, X-Requested-With, Content-Type, Accept",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        Vary: "Origin",
+      },
       statusCode: 200,
       body: JSON.stringify(results),
     };
