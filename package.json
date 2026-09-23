@@ -1,4 +1,8 @@
 {
+  "scripts": {
+    "serve": "netlify functions:serve",
+    "dev": "netlify dev"
+  },
   "dependencies": {
     "@flowdegree/arabic-strings": "^2.0.0",
     "dotenv": "^16.5.0",
