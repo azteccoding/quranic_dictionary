@@ -1,8 +1,6 @@
 const { MongoClient, ObjectId } = require("mongodb");
 
-const mongoClient = new MongoClient(
-  process.env.MONGO_URI_LOCAL || process.env.MONGO_URI
-);
+const mongoClient = new MongoClient(process.env.MONGO_URI);
 
 const clientPromise = mongoClient.connect();
 
@@ -37,7 +35,7 @@ const normalize = (field, value) => {
         toList(value)
           .filter((s) => typeof s === "string")
           .map((s) => s.trim().toLowerCase())
-          .filter(Boolean)
+          .filter(Boolean),
       ),
     ];
   }
@@ -61,7 +59,10 @@ const handler = async (event, context) => {
     return respond(405, { error: "Método no permitido. Usa PATCH." });
   }
 
-  if (process.env.API_KEY && event.headers["x-api-key"] !== process.env.API_KEY) {
+  if (
+    process.env.API_KEY &&
+    event.headers["x-api-key"] !== process.env.API_KEY
+  ) {
     return respond(401, { error: "No autorizado" });
   }
 
@@ -85,13 +86,19 @@ const handler = async (event, context) => {
   }
 
   // Validación de nombres de campo
-  const allFields = [...Object.keys(set), ...Object.keys(add), ...Object.keys(remove)];
+  const allFields = [
+    ...Object.keys(set),
+    ...Object.keys(add),
+    ...Object.keys(remove),
+  ];
   if (allFields.length === 0) {
     return respond(400, { error: "No hay nada que actualizar" });
   }
   for (const field of allFields) {
     if (field.startsWith("$") || PROTECTED.includes(field.split(".")[0])) {
-      return respond(400, { error: `El campo '${field}' no se puede modificar` });
+      return respond(400, {
+        error: `El campo '${field}' no se puede modificar`,
+      });
     }
   }
   const repeated = allFields.filter((f, i) => allFields.indexOf(f) !== i);
@@ -109,7 +116,10 @@ const handler = async (event, context) => {
   if ("spanish" in set && $set.spanish.length === 0) {
     return respond(400, { error: "'spanish' no puede quedar vacío" });
   }
-  if ("arabic_sg" in set && (typeof $set.arabic_sg !== "string" || !$set.arabic_sg)) {
+  if (
+    "arabic_sg" in set &&
+    (typeof $set.arabic_sg !== "string" || !$set.arabic_sg)
+  ) {
     return respond(400, { error: "'arabic_sg' no puede quedar vacío" });
   }
 
@@ -142,7 +152,10 @@ const handler = async (event, context) => {
     const added = $addToSet.spanish?.$each ?? [];
     const removed = $pull.spanish?.$in ?? [];
     const finalSpanish = [
-      ...new Set([...($set.spanish ?? toList(current.spanish ?? [])), ...added]),
+      ...new Set([
+        ...($set.spanish ?? toList(current.spanish ?? [])),
+        ...added,
+      ]),
     ].filter((s) => !removed.includes(s));
 
     if (finalSpanish.length === 0) {
@@ -157,7 +170,7 @@ const handler = async (event, context) => {
       "arabic_sg" in $set
         ? finalSpanish
         : [...($set.spanish ?? []), ...added].filter(
-            (s) => !toList(current.spanish ?? []).includes(s)
+            (s) => !toList(current.spanish ?? []).includes(s),
           );
 
     if (toCheck.length) {
