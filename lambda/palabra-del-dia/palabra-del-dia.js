@@ -1,7 +1,6 @@
 const { MongoClient } = require("mongodb");
 
-// ⚠️ Usa exactamente la misma cadena de conexión o variable que tus otras lambdas
-const MONGO_URI = process.env.MONGO_URI_LOCAL;
+const MONGO_URI = process.env.MONGO_URI;
 
 let client; // se reutiliza entre invocaciones
 
