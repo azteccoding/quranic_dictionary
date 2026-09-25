@@ -15,9 +15,18 @@ const handler = async (request, context) => {
     const collection = database.collection("dictionary");
     const word = searchWord.trim().removeHarakats();
     // Busca en la forma singular y también en el masdar de los verbos
-    const results = await collection
+    const mainResults = await collection
       .find({ $or: [{ arabic_sg: word }, { "conjugation.masdar": word }] })
       .toArray();
+    // También busca entre los plurales; esos resultados van al final
+    // (p. ej. كتب: primero el verbo "escribir", luego كتاب "libro")
+    const pluralResults = await collection
+      .find({
+        arabic_pl: word,
+        _id: { $nin: mainResults.map((doc) => doc._id) },
+      })
+      .toArray();
+    const results = [...mainResults, ...pluralResults];
     return {
       headers: {
         "Access-Control-Allow-Headers":

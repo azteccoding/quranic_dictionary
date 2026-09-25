@@ -64,6 +64,11 @@ const STOPWORDS = new Set([
   "algo",
   "algn",
   "alguien",
+  // sustantivos, verbos auxiliares y adjetivos comunes en verbos
+  "ser",
+  "tener",
+  "todo",
+  "toda",
 ]);
 
 // Minúsculas y sin acentos (conserva la ñ): "Canción" -> "cancion"
@@ -113,48 +118,71 @@ const handler = async (event, context) => {
     const onlyStopwords = keywords.length === 0;
     const queryPhrase = queryTokens.join(" ");
 
-    // 1) Prefiltro en MongoDB: documentos cuyo 'spanish' contiene esas letras.
+    // 1) Prefiltro en MongoDB: documentos cuyo 'spanish' o cuyo masdar_meaning
+    //    contiene AL MENOS UNA de las palabras buscadas.
     //    Solo son letras (tokenize), así que no hay caracteres especiales de regex.
     const wordsToFind = onlyStopwords ? queryTokens : keywords;
-    const regex = wordsToFind.map((w) => `(?=.*${accentPattern(w)})`).join("");
+    const regex = onlyStopwords
+      ? wordsToFind.map((w) => `(?=.*${accentPattern(w)})`).join("")
+      : wordsToFind.map(accentPattern).join("|");
 
     const collection = (await clientPromise)
       .db("quranic_arabic")
       .collection("dictionary");
     const candidates = await collection
-      .find({ spanish: { $regex: regex, $options: "i" } })
+      .find({
+        $or: [
+          { spanish: { $regex: regex, $options: "i" } },
+          { "conjugation.masdar_meaning": { $regex: regex, $options: "i" } },
+        ],
+      })
       .toArray();
 
-    // 2) Filtro exacto por palabras completas, ignorando lo que está entre paréntesis.
-    //    Devuelve null si no coincide, o una puntuación (menor = más relevante).
+    // 2) Filtro por palabras completas, ignorando lo que está entre paréntesis.
+    //    Devuelve null si no coincide, o { count, rank }:
+    //    count = cuántas palabras de la búsqueda aparecen en la acepción (más = mejor)
+    //    rank  = tipo de coincidencia (menor = mejor)
     const scoreMeaning = (meaning) => {
       const segs = segments(meaning);
 
       if (onlyStopwords) {
         // "de" solo encuentra acepciones que sean exactamente "de" (o "de / desde"…)
-        return segs.includes(queryPhrase) ? 0 : null;
+        return segs.includes(queryPhrase) ? { count: 1, rank: 0 } : null;
       }
 
       const words = segs.join(" ").split(" ");
-      if (!keywords.every((k) => words.includes(k))) return null;
+      const matched = keywords.filter((k) => words.includes(k));
+      if (matched.length === 0) return null;
 
-      if (segs.includes(queryPhrase)) return 0; // la acepción es exactamente lo buscado
-      if (segs.some((s) => s.split(" ")[0] === keywords[0])) return 1; // empieza con la palabra
-      return 2; // la palabra aparece dentro de la acepción
+      let rank = 2; // las palabras aparecen dentro de la acepción
+      if (segs.includes(queryPhrase)) rank = 0; // la acepción es exactamente lo buscado
+      else if (segs.some((s) => matched.includes(s.split(" ")[0]))) rank = 1; // empieza con una de las palabras
+
+      return { count: matched.length, rank };
     };
+
+    const scoreList = (meanings, penalty = 0) =>
+      (Array.isArray(meanings) ? meanings : [meanings])
+        .filter((m) => typeof m === "string")
+        .map(scoreMeaning)
+        .filter(Boolean)
+        .map(({ count, rank }) => ({ count, rank: rank + penalty }));
+
+    // Primero más palabras coincidentes; a igual número, mejor tipo de coincidencia
+    const compare = (a, b) => b.count - a.count || a.rank - b.rank;
 
     const results = candidates
       .map((doc) => {
-        const scores = (
-          Array.isArray(doc.spanish) ? doc.spanish : [doc.spanish]
-        )
-          .filter((m) => typeof m === "string")
-          .map(scoreMeaning)
-          .filter((s) => s !== null);
-        return scores.length ? { doc, score: Math.min(...scores) } : null;
+        const scores = [
+          ...scoreList(doc.spanish),
+          // Coincidencias en el masdar: a igual relevancia, van después
+          // de las coincidencias en 'spanish'
+          ...scoreList(doc.conjugation?.masdar_meaning ?? [], 0.5),
+        ];
+        return scores.length ? { doc, score: scores.sort(compare)[0] } : null;
       })
       .filter(Boolean)
-      .sort((a, b) => a.score - b.score) // primero las coincidencias exactas
+      .sort((a, b) => compare(a.score, b.score))
       .map(({ doc }) => doc);
 
     return respond(200, results);
