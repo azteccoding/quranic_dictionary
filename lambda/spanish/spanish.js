@@ -69,6 +69,7 @@ const STOPWORDS = new Set([
   "tener",
   "todo",
   "toda",
+  "hecho",
   "acto",
   "efecto",
 ]);
