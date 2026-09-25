@@ -69,6 +69,8 @@ const STOPWORDS = new Set([
   "tener",
   "todo",
   "toda",
+  "acto",
+  "efecto",
 ]);
 
 // Minúsculas y sin acentos (conserva la ñ): "Canción" -> "cancion"
@@ -155,7 +157,8 @@ const handler = async (event, context) => {
       if (matched.length === 0) return null;
 
       let rank = 2; // las palabras aparecen dentro de la acepción
-      if (segs.includes(queryPhrase)) rank = 0; // la acepción es exactamente lo buscado
+      if (segs.includes(queryPhrase))
+        rank = 0; // la acepción es exactamente lo buscado
       else if (segs.some((s) => matched.includes(s.split(" ")[0]))) rank = 1; // empieza con una de las palabras
 
       return { count: matched.length, rank };

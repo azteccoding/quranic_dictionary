@@ -8,6 +8,17 @@ String.prototype.removeHarakats = function () {
   return this.replace(/[\u064B-\u0652]/gm, "");
 };
 
+// Regex para encontrar la palabra dentro de un masdar con varias formas
+// ("مس، مسيس"): palabra completa separada por ، , ؛ ; / o espacios,
+// y tolerante a harakat por si el masdar se guardó vocalizado.
+const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const masdarRegex = (word) => {
+  const letters = [...word]
+    .map((c) => `${escapeRegex(c)}[\u064B-\u0652]*`)
+    .join("");
+  return new RegExp(`(^|[،,؛;/\\s])${letters}([،,؛;/\\s]|$)`);
+};
+
 const handler = async (request, context) => {
   try {
     const searchWord = request.queryStringParameters?.word;
@@ -16,7 +27,12 @@ const handler = async (request, context) => {
     const word = searchWord.trim().removeHarakats();
     // Busca en la forma singular y también en el masdar de los verbos
     const mainResults = await collection
-      .find({ $or: [{ arabic_sg: word }, { "conjugation.masdar": word }] })
+      .find({
+        $or: [
+          { arabic_sg: word },
+          { "conjugation.masdar": masdarRegex(word) },
+        ],
+      })
       .toArray();
     // También busca entre los plurales; esos resultados van al final
     // (p. ej. كتب: primero el verbo "escribir", luego كتاب "libro")
