@@ -22,6 +22,45 @@ const respond = (statusCode, data) => ({
 // Misma normalización que usan arabic.js y create_word.js
 const removeHarakats = (text) => text.replace(/[ً-ْ]/gm, "");
 
+// Campos de palabra (no oraciones ni citas) a los que se les quitan las harakat.
+// Las oraciones del Corán, hadices, frases y additionals conservan su vocalización.
+const ARABIC_WORD_PATHS = [
+  "arabic_sg",
+  "arabic_pl",
+  "definite_sg",
+  "indefNoun",
+  "root",
+  "synonim",
+  "antonym",
+  "conjugation.root",
+  "conjugation.perfect3",
+  "conjugation.perfect1",
+  "conjugation.masdar",
+  "participle.active.arabic",
+  "participle.pasive.arabic",
+];
+
+const stripValue = (value) => {
+  if (typeof value === "string") return removeHarakats(value.trim());
+  if (Array.isArray(value)) return value.map(stripValue);
+  return value;
+};
+
+// Recorre el valor según su ruta ("conjugation", "conjugation.masdar"…)
+// y quita harakat solo en las rutas de ARABIC_WORD_PATHS
+const normalizeArabic = (path, value) => {
+  if (ARABIC_WORD_PATHS.includes(path)) return stripValue(value);
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return Object.fromEntries(
+      Object.entries(value).map(([k, v]) => [
+        k,
+        normalizeArabic(path ? `${path}.${k}` : k, v),
+      ]),
+    );
+  }
+  return value;
+};
+
 // Campos que nunca se pueden tocar desde aquí
 const PROTECTED = ["_id", "created_at", "updated_at"];
 
@@ -44,10 +83,8 @@ const normalize = (field, value) => {
       .filter((p) => typeof p === "string" && p.trim())
       .map((p) => removeHarakats(p.trim()));
   }
-  if (field === "arabic_sg" && typeof value === "string") {
-    return removeHarakats(value.trim());
-  }
-  return value;
+  // arabic_sg, conjugation.masdar, participle…, o un objeto completo como "conjugation"
+  return normalizeArabic(field, value);
 };
 
 const isPlainObject = (v) => v && typeof v === "object" && !Array.isArray(v);

@@ -22,6 +22,45 @@ const respond = (statusCode, data) => ({
 // Misma normalización que usa arabic.js al buscar
 const removeHarakats = (text) => text.replace(/[ً-ْ]/gm, "");
 
+// Campos de palabra (no oraciones ni citas) a los que se les quitan las harakat.
+// Las oraciones del Corán, hadices, frases y additionals conservan su vocalización.
+const ARABIC_WORD_PATHS = [
+  "arabic_sg",
+  "arabic_pl",
+  "definite_sg",
+  "indefNoun",
+  "root",
+  "synonim",
+  "antonym",
+  "conjugation.root",
+  "conjugation.perfect3",
+  "conjugation.perfect1",
+  "conjugation.masdar",
+  "participle.active.arabic",
+  "participle.pasive.arabic",
+];
+
+const stripValue = (value) => {
+  if (typeof value === "string") return removeHarakats(value.trim());
+  if (Array.isArray(value)) return value.map(stripValue);
+  return value;
+};
+
+// Recorre el valor según su ruta ("conjugation", "conjugation.masdar"…)
+// y quita harakat solo en las rutas de ARABIC_WORD_PATHS
+const normalizeArabic = (path, value) => {
+  if (ARABIC_WORD_PATHS.includes(path)) return stripValue(value);
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return Object.fromEntries(
+      Object.entries(value).map(([k, v]) => [
+        k,
+        normalizeArabic(path ? `${path}.${k}` : k, v),
+      ]),
+    );
+  }
+  return value;
+};
+
 const handler = async (event, context) => {
   // Preflight de CORS (el navegador lo envía antes del POST)
   if (event.httpMethod === "OPTIONS") return respond(204, {});
@@ -72,7 +111,9 @@ const handler = async (event, context) => {
 
   const word = {
     spanish: spanishList,
-    ...rest, // english, translit_*, root, quranic_appear, conjugation, etc. tal cual
+    // english, translit_*, quranic_appear, conjugation, etc.;
+    // a los campos de palabra en árabe se les quitan las harakat
+    ...normalizeArabic("", rest),
     arabic_sg: removeHarakats(arabic_sg.trim()), // sin harakat, como busca arabic.js
     arabic_pl: (Array.isArray(arabic_pl)
       ? arabic_pl

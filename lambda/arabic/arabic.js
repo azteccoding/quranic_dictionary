@@ -13,8 +13,10 @@ const handler = async (request, context) => {
     const searchWord = request.queryStringParameters?.word;
     const database = (await clientPromise).db("quranic_arabic");
     const collection = database.collection("dictionary");
+    const word = searchWord.trim().removeHarakats();
+    // Busca en la forma singular y también en el masdar de los verbos
     const results = await collection
-      .find({ arabic_sg: searchWord.trim().removeHarakats() })
+      .find({ $or: [{ arabic_sg: word }, { "conjugation.masdar": word }] })
       .toArray();
     return {
       headers: {
